@@ -25,9 +25,9 @@ From a cybersecurity perspective, the lab focuses on the controls that matter mo
 - Configure DNS forwarding, primary/secondary zones, stub zones, host records, and round robin validation.
 - Enable remote administration through RDP for approved administrator groups.
 - Configure roaming and mandatory profiles.
-- Implement file-server shares, NTFS permissions, mapped drives, quotas, and file screening.
+- Implement file-server shares, NTFS permissions, mapped drives, and quotas.
 - Harden Windows clients with Group Policy controls.
-- Configure password policy controls and document the correct enterprise approach for department-specific policies.
+- Configure and apply a domain-wide password policy baseline.
 
 ## Project Roadmap
 
@@ -38,7 +38,7 @@ From a cybersecurity perspective, the lab focuses on the controls that matter mo
 | Network services | RRAS NAT, DHCP scope options, DHCP failover, DNS forwarding, zones, and round robin records |
 | Remote access | RDP access for approved administrators and lab-only NAT forwarding validation |
 | User environment | Roaming profiles, mandatory profiles, home folders, and mapped drives |
-| File access | Share permissions, NTFS access, FSRM quotas, and file screening |
+| File access | Share permissions, NTFS access, mapped drives, and FSRM quotas |
 | Endpoint policy | GPO hardening, removable storage controls, local administrator assignment, and software deployment |
 | Account security | Password policy controls and production-correct notes for group-specific password policy |
 
@@ -59,7 +59,7 @@ The environment is intentionally small but covers the main moving parts of a Win
 | NAT/LAN gateway | `192.168.116.254` |
 | WAN network | `192.168.68.0/24` lab bridged network |
 
-> The lab screenshots intentionally retain the original lab usernames, domain names, and passwords because they are part of the submitted lab evidence.
+> The screenshots retain the usernames, domain names, internal addresses, and passwords used inside this isolated training environment.
 
 ## Tools and Technologies
 
@@ -106,7 +106,7 @@ This diagram shows the relationship between DC1, DC2, SAMNAT, the internal LAN, 
 
 ![Network Topology](images/01-topology/01-network-topology.png)
 
-<p><sub><strong>Screenshot:</strong> Network topology with DC1, DC2, NAT server, Win10 client, LAN and internet path.</sub></p>
+<p><sub><strong>Screenshot 001 - Network Topology:</strong> Network topology with DC1, DC2, NAT server, Win10 client, LAN and internet path.</sub></p>
 
 ### Lab addressing and role plan
 
@@ -120,20 +120,18 @@ Before installation, the lab defines hostnames, IP addresses, gateway settings, 
 |------|-------|
 | Domain | `samueldomain.com` |
 | FQDN | `samueldomain.com` |
-| Internal IP range | `192.168.116.50-100/24` |
+| Internal subnet | `192.168.116.0/24` |
+| DHCP address pool | `192.168.116.50` - `192.168.116.100` |
 | Admin username | `Avocado` |
 | Admin password | `1234qweR` |
-| Planned client/user count | 17 |
-| Planned client computers | 23 |
-| Planned departments | 20 |
 
 **Server addressing and roles:**
 
 | Server Role | Hostname | Operating System | IP Address | Default Gateway | Primary DNS | Secondary DNS | Roles |
 |-------------|----------|------------------|------------|-----------------|-------------|---------------|-------|
-| First domain controller | `samdc1` | Microsoft Server 2019 | `192.168.116.200/24` | `192.168.116.254` | `192.168.116.200` | `192.168.116.201` | DC, DNS, AD, DHCP |
-| Second domain controller | `samdc2` | Microsoft Server 2019 | `192.168.116.201/24` | `192.168.116.254` | `192.168.116.200` | `192.168.116.201` | AD, DNS, File Server |
-| NAT server | `samnat` | Microsoft Server 2019 | `192.168.116.254/24` | Not configured on LAN side | `192.168.116.200` | `192.168.116.201` | Router, NAT |
+| First domain controller | `samdc1` | Windows Server 2019 | `192.168.116.200/24` | `192.168.116.254` | `192.168.116.200` | `192.168.116.201` | AD DS, DNS, DHCP |
+| Second domain controller | `samdc2` | Windows Server 2019 | `192.168.116.201/24` | `192.168.116.254` | `192.168.116.200` | `192.168.116.201` | AD DS, DNS, File Server |
+| NAT server | `samnat` | Windows Server 2019 | `192.168.116.254/24` | Not configured on LAN side | `192.168.116.200` | `192.168.116.201` | RRAS, NAT |
 
 ### Virtual machine inventory
 
@@ -143,17 +141,17 @@ The VMware inventory confirms that the required machines were prepared before do
 
 ![VM Inventory](images/02-lab-environment/02-vm-inventory.png)
 
-<p><sub><strong>Screenshot:</strong> VMware inventory showing the lab virtual machines.</sub></p>
+<p><sub><strong>Screenshot 003 - VM Inventory:</strong> VMware inventory showing the lab virtual machines.</sub></p>
 
-### Windows Server installation media
+### Prepare the Windows Server 2019 installation
 
-Windows Server 2019 was selected as the server operating system for the domain controllers and the NAT server.
+Windows Server 2019 is installed on all server virtual machines in the lab: DC1, DC2, and SAMNAT. During the initial setup, the installation language is set to English, the regional format is set to Hebrew (Israel), and the keyboard layout is set to US.
 
-> Using the same server version keeps the lab consistent and reduces troubleshooting noise. Windows Server 2019 supports the AD DS, DNS, DHCP, RRAS, File Server, and Group Policy features required later in the project.
+> Using the same operating system across all servers is not a strict requirement, but it provides a more consistent platform for Active Directory, DNS, DHCP, file services, and RRAS. A mixed Windows Server environment can also work when the selected versions support the required roles, domain and forest functional levels, and application compatibility.
 
-![Windows Server ISO Selection](images/02-lab-environment/03-windows-server-iso-selection.png)
+![Windows Server 2019 Language Setup](images/02-lab-environment/03-windows-server-language-setup.png)
 
-<p><sub><strong>Screenshot:</strong> Windows Server 2019 installation media selected during setup.</sub></p>
+<p><sub><strong>Screenshot 004 - Windows Server 2019 Language Setup:</strong> Windows Server 2019 setup with the installation language, regional format, and keyboard layout selected.</sub></p>
 
 ---------
 
@@ -180,7 +178,7 @@ The first server is renamed before domain promotion. Clear server naming is impo
 
 ![DC1 Computer Name](images/03-active-directory/01-dc1-computer-name.png)
 
-<p><sub><strong>Screenshot:</strong> DC1 computer rename before domain promotion.</sub></p>
+<p><sub><strong>Screenshot 006 - DC1 Computer Name:</strong> DC1 computer rename before domain promotion.</sub></p>
 
 ### Add Active Directory Domain Services
 
@@ -190,7 +188,7 @@ The AD DS and DNS roles are selected from Server Manager. DNS is installed with 
 
 ![Add AD DS Role](images/03-active-directory/02-add-ad-ds-role.png)
 
-<p><sub><strong>Screenshot:</strong> Adding Active Directory Domain Services and DNS roles.</sub></p>
+<p><sub><strong>Screenshot 007 - Add AD DS Role:</strong> Adding Active Directory Domain Services and DNS roles.</sub></p>
 
 ### Create the new forest
 
@@ -200,7 +198,7 @@ DC1 is promoted into a new forest using `samueldomain.com` as the root domain. T
 
 ![New Forest Root Domain](images/03-active-directory/04-new-forest-root-domain.png)
 
-<p><sub><strong>Screenshot:</strong> New forest deployment with `samueldomain.com` as the root domain.</sub></p>
+<p><sub><strong>Screenshot 009 - New Forest Root Domain:</strong> New forest deployment with `samueldomain.com` as the root domain.</sub></p>
 
 ### Controlled admin account and built-in account hardening
 
@@ -212,7 +210,7 @@ This is a security-focused change, not just an administrative preference. The bu
 
 ![Create Controlled Admin Account](images/03-active-directory/06-create-controlled-admin-account.png)
 
-<p><sub><strong>Screenshot:</strong> Controlled administrative account created before hardening the default built-in Administrator account.</sub></p>
+<p><sub><strong>Screenshot 011 - Create Controlled Admin Account:</strong> Controlled administrative account created before hardening the default built-in Administrator account.</sub></p>
 
 > Security note: In a production environment, this control should be combined with least privilege, privileged access management, MFA for administrative access, and auditing of privileged logons.
 
@@ -224,7 +222,7 @@ DC2 is joined to the existing domain and promoted as an additional domain contro
 
 ![Promote DC2 Existing Domain](images/03-active-directory/10-promote-dc2-existing-domain.png)
 
-<p><sub><strong>Screenshot:</strong> DC2 promotion into the existing domain.</sub></p>
+<p><sub><strong>Screenshot 015 - Promote DC2 Existing Domain:</strong> DC2 promotion into the existing domain.</sub></p>
 
 ### Transfer the RID Master role
 
@@ -234,7 +232,7 @@ The RID Master FSMO role is transferred to DC2 as part of the domain-controller 
 
 ![Transfer RID Master to DC2](images/03-active-directory/13-transfer-rid-master-to-dc2.png)
 
-<p><sub><strong>Screenshot:</strong> RID Master role transfer confirmation.</sub></p>
+<p><sub><strong>Screenshot 018 - Transfer RID Master to DC2:</strong> RID Master role transfer confirmation.</sub></p>
 
 ### Create administrative and department groups
 
@@ -244,50 +242,94 @@ The lab creates groups such as `Sales` and `Sys_Admins`. These groups are later 
 
 ![Sales and SysAdmins Groups](images/03-active-directory/15-sales-and-sysadmins-groups.png)
 
-<p><sub><strong>Screenshot:</strong> Sales and Sys_Admins group membership.</sub></p>
+<p><sub><strong>Screenshot 020 - Sales and SysAdmins Groups:</strong> Sales and Sys_Admins group membership.</sub></p>
 
 ### Create users and groups with DSADD
 
-The project demonstrates legacy command-line administration by creating users and groups with `dsadd`. This validates that AD object creation can be automated outside the GUI.
+The lab uses `dsadd` to create a domain user and two security groups directly from Command Prompt. Each command identifies the Active Directory object by its distinguished name, which includes the object name, container, and domain path.
 
-> `dsadd` is an older command-line tool, but it shows the principle of repeatable administration. Creating objects from commands reduces manual clicks and helps keep user and group creation consistent.
+```cmd
+dsadd user "CN=David Scotch,CN=Users,DC=SamuelDomain,DC=com" ^
+    -samid davids ^
+    -upn davids@samueldomain.com ^
+    -fn David ^
+    -ln Scotch ^
+    -pwd 1234qweR ^
+    -pwdneverexpires yes
+
+dsadd group "CN=Group 1,CN=Users,DC=SamuelDomain,DC=com" ^
+    -scope g ^
+    -secgrp yes ^
+    -members "CN=Shon Wiskey,CN=Users,DC=SamuelDomain,DC=com"
+
+dsadd group "CN=Group 2,CN=Users,DC=SamuelDomain,DC=com" ^
+    -scope g ^
+    -secgrp yes ^
+    -members "CN=David Scotch,CN=Users,DC=SamuelDomain,DC=com"
+```
+
+> `dsadd` demonstrates repeatable administration without relying on the graphical console. The password and non-expiring setting are retained for this isolated lab; production accounts should use protected credential handling, password expiration, and least-privilege group membership.
 
 ![DSADD Script Run](images/03-active-directory/17-dsadd-users-and-groups-script-run.png)
 
-<p><sub><strong>Screenshot:</strong> DSADD script execution and created groups/users.</sub></p>
+<p><sub><strong>Screenshot 022 - DSADD Script Run:</strong> DSADD script execution and created groups/users.</sub></p>
 
 ### Create users with PowerShell
 
-PowerShell is used to create AD objects in a more modern and maintainable way. The original source used `for ($i = 50; $i -le 60; $i++)`, which creates 11 users. For exactly 10 users, the corrected loop is:
+PowerShell is used to add ten domain users, `user50` through `user59`, to the `PS` organizational unit. These accounts can then be assigned to security groups and used in later administration, access-control, Group Policy, and service-validation tasks.
 
-> PowerShell is the preferred approach for modern Windows administration because it is scriptable, readable, and reusable. In a real environment, bulk user creation should be automated to reduce mistakes in usernames, OU placement, passwords, and group membership.
+> Automating account creation keeps usernames, UPNs, OU placement, and initial account settings consistent. The `-lt 60` condition stops the loop before 60, producing exactly ten accounts.
 
 ```powershell
+Import-Module ActiveDirectory
+
+$domainDn = "DC=SamuelDomain,DC=com"
+$ouName = "PS"
+$ouPath = "OU=$ouName,$domainDn"
+$initialPassword = ConvertTo-SecureString "1234qweR" -AsPlainText -Force
+
+if (-not (Get-ADOrganizationalUnit -Identity $ouPath -ErrorAction SilentlyContinue)) {
+    New-ADOrganizationalUnit `
+        -Name $ouName `
+        -Path $domainDn `
+        -ProtectedFromAccidentalDeletion $true
+}
+
 for ($i = 50; $i -lt 60; $i++) {
     $username = "user$i"
+    $displayName = "User $i"
+
     New-ADUser `
+        -Name $displayName `
+        -DisplayName $displayName `
         -SamAccountName $username `
         -UserPrincipalName "$username@samueldomain.com" `
-        -Name $username `
-        -Path "OU=PS,DC=SamuelDomain,DC=com" `
-        -AccountPassword (ConvertTo-SecureString "1234qweR" -AsPlainText -Force) `
-        -Enabled $true
+        -Path $ouPath `
+        -AccountPassword $initialPassword `
+        -Enabled $true `
+        -ChangePasswordAtLogon $true
 }
 ```
 
-![PowerShell Bulk User Loop](images/03-active-directory/21-powershell-bulk-user-loop.png)
-
-<p><sub><strong>Screenshot:</strong> PowerShell loop used for bulk AD user creation.</sub></p>
-
 ### Validate AD replication
 
-The created objects are visible across the domain controllers. This confirms that AD changes are replicating between DC1 and DC2.
+Before comparing directory objects, DC2 is discovered through Active Directory and added to the **All Servers** view in Server Manager. This gives the administrator a central console for monitoring and opening management tools against both domain controllers.
+
+> Adding DC2 to Server Manager does not enable replication by itself. AD DS replication is established when DC2 is promoted as an additional domain controller; this screen confirms that the server can be discovered in the domain and added to the management console before replication is checked in ADUC.
+
+![Add DC2 to Server Manager](images/03-active-directory/21-server-manager-add-dc2.png)
+
+<p><sub><strong>Screenshot 026 - Add DC2 to Server Manager:</strong> DC2 discovered through Active Directory and selected for addition to Server Manager.</sub></p>
+
+Active Directory Users and Computers is opened separately against `samdc2.samueldomain.com` and `samdc1.samueldomain.com`. The `PS` organizational unit and the same user objects are visible through both domain controllers, confirming that the directory changes replicated between DC1 and DC2.
+
+The directory view also contains `user60`, an additional test account outside the ten-account PowerShell loop documented above. The loop itself intentionally creates `user50` through `user59`.
 
 > Replication is what keeps domain controllers synchronized. If users or groups appear on one domain controller but not another, clients may receive inconsistent authentication or policy results depending on which domain controller they contact.
 
-![AD Replication Visible on Both DCs](images/03-active-directory/23-ad-replication-visible-on-both-dcs.png)
+![AD Replication Visible on Both DCs](images/03-active-directory/22-ad-replication-visible-on-both-dcs.png)
 
-<p><sub><strong>Screenshot:</strong> AD object synchronization visible on both domain controllers.</sub></p>
+<p><sub><strong>Screenshot 027 - AD Replication Visible on Both DCs:</strong> The PS organizational unit and matching user objects visible through both DC2 and DC1.</sub></p>
 
 ---------
 
@@ -315,7 +357,7 @@ SAMNAT has a LAN interface for the internal `192.168.116.0/24` network and a WAN
 
 ![SAMNAT NIC Setup](images/04-nat-routing/01-samnat-domain-join-and-nic-setup.png)
 
-<p><sub><strong>Screenshot:</strong> SAMNAT domain membership and network interface setup.</sub></p>
+<p><sub><strong>Screenshot 028 - SAMNAT NIC Setup:</strong> SAMNAT domain membership and network interface setup.</sub></p>
 
 ### Install the Remote Access role
 
@@ -325,7 +367,7 @@ The Remote Access role is installed to provide Routing and Remote Access Service
 
 ![Remote Access Role Selection](images/04-nat-routing/05-remote-access-role-selection.png)
 
-<p><sub><strong>Screenshot:</strong> Remote Access role selected for NAT/RRAS.</sub></p>
+<p><sub><strong>Screenshot 032 - Remote Access Role Selection:</strong> Remote Access role selected for NAT/RRAS.</sub></p>
 
 ### Enable NAT and LAN routing
 
@@ -335,7 +377,7 @@ RRAS is configured with NAT and LAN routing. This allows internal hosts to send 
 
 ![NAT and LAN Routing Selection](images/04-nat-routing/07-nat-and-lan-routing-selection.png)
 
-<p><sub><strong>Screenshot:</strong> RRAS custom configuration with NAT and LAN routing.</sub></p>
+<p><sub><strong>Screenshot 034 - NAT and LAN Routing Selection:</strong> RRAS custom configuration with NAT and LAN routing.</sub></p>
 
 ### Mark the WAN interface as public
 
@@ -345,7 +387,7 @@ The WAN interface is selected as the public interface connected to the external 
 
 ![NAT Public Interface Configuration](images/04-nat-routing/08-nat-public-interface-configuration.png)
 
-<p><sub><strong>Screenshot:</strong> NAT public interface configuration.</sub></p>
+<p><sub><strong>Screenshot 035 - NAT Public Interface Configuration:</strong> NAT public interface configuration.</sub></p>
 
 ### Validate internet connectivity from DC1
 
@@ -355,7 +397,7 @@ After NAT is configured, DC1 can reach an external DNS address. This proves that
 
 ![DC1 Internet Connectivity Test](images/04-nat-routing/09-dc1-internet-connectivity-test.png)
 
-<p><sub><strong>Screenshot:</strong> DC1 ping test to public DNS through NAT.</sub></p>
+<p><sub><strong>Screenshot 036 - DC1 Internet Connectivity Test:</strong> DC1 ping test to public DNS through NAT.</sub></p>
 
 ---------
 
@@ -383,7 +425,7 @@ The DHCP Server role is selected in Server Manager. This prepares DC1 to distrib
 
 ![Select DHCP Server Role](images/05-dhcp/02-select-dhcp-server-role.png)
 
-<p><sub><strong>Screenshot:</strong> DHCP Server role selection.</sub></p>
+<p><sub><strong>Screenshot 040 - Select DHCP Server Role:</strong> DHCP Server role selection.</sub></p>
 
 ### Authorize DHCP in Active Directory
 
@@ -393,7 +435,7 @@ The DHCP server is authorized so it can issue leases in the AD domain environmen
 
 ![DHCP Authorization](images/05-dhcp/04-dhcp-authorization.png)
 
-<p><sub><strong>Screenshot:</strong> DHCP authorization using domain credentials.</sub></p>
+<p><sub><strong>Screenshot 042 - DHCP Authorization:</strong> DHCP authorization using domain credentials.</sub></p>
 
 ### Create the DHCP scope
 
@@ -403,7 +445,7 @@ The DHCP scope defines the client address range. This lab uses a controlled rang
 
 ![DHCP Scope Address Range](images/05-dhcp/07-dhcp-scope-address-range.png)
 
-<p><sub><strong>Screenshot:</strong> DHCP scope address range configuration.</sub></p>
+<p><sub><strong>Screenshot 045 - DHCP Scope Address Range:</strong> DHCP scope address range configuration.</sub></p>
 
 ### Add exclusions
 
@@ -413,7 +455,7 @@ The first addresses in the range are excluded so they can remain reserved for st
 
 ![DHCP Exclusion Range](images/05-dhcp/08-dhcp-exclusion-range.png)
 
-<p><sub><strong>Screenshot:</strong> DHCP exclusion range configuration.</sub></p>
+<p><sub><strong>Screenshot 046 - DHCP Exclusion Range:</strong> DHCP exclusion range configuration.</sub></p>
 
 ### Configure DHCP options
 
@@ -423,7 +465,7 @@ The scope provides gateway and DNS settings to clients. The gateway points to SA
 
 ![DNS Server Option](images/05-dhcp/12-dns-server-option.png)
 
-<p><sub><strong>Screenshot:</strong> DHCP DNS server option for domain clients.</sub></p>
+<p><sub><strong>Screenshot 050 - DNS Server Option:</strong> DHCP DNS server option for domain clients.</sub></p>
 
 ### Validate automatic client configuration
 
@@ -433,7 +475,7 @@ The Windows 10 client receives its IP configuration automatically from DHCP. Thi
 
 ![Windows 10 DHCP Address Validation](images/05-dhcp/13-win10-dhcp-address-validation.png)
 
-<p><sub><strong>Screenshot:</strong> Windows 10 receiving automatic DHCP address configuration.</sub></p>
+<p><sub><strong>Screenshot 051 - Windows 10 DHCP Address Validation:</strong> Windows 10 receiving automatic DHCP address configuration.</sub></p>
 
 ### Configure DHCP failover
 
@@ -443,7 +485,7 @@ The lab configures a DHCP failover relationship with DC2. This is more accuratel
 
 ![DHCP Failover Relationship](images/05-dhcp/17-dhcp-failover-relationship.png)
 
-<p><sub><strong>Screenshot:</strong> DHCP failover relationship settings.</sub></p>
+<p><sub><strong>Screenshot 055 - DHCP Failover Relationship:</strong> DHCP failover relationship settings.</sub></p>
 
 ---------
 
@@ -471,7 +513,7 @@ The server is configured to allow RDP access for the administrative group.
 
 ![Enable Remote Desktop for SysAdmins](images/06-remote-management/01-enable-remote-desktop-for-sysadmins.png)
 
-<p><sub><strong>Screenshot:</strong> Remote Desktop enabled for the Sys_Admins group.</sub></p>
+<p><sub><strong>Screenshot 056 - Enable Remote Desktop for SysAdmins:</strong> Remote Desktop enabled for the Sys_Admins group.</sub></p>
 
 ### Validate RDP from the client
 
@@ -481,7 +523,7 @@ The Windows 10 client connects to a server through Remote Desktop using an autho
 
 ![RDP Connection as User3](images/06-remote-management/04-rdp-connection-as-user3.png)
 
-<p><sub><strong>Screenshot:</strong> RDP connection from Windows 10 as User 3.</sub></p>
+<p><sub><strong>Screenshot 059 - RDP Connection as User3:</strong> RDP connection from Windows 10 as User 3.</sub></p>
 
 ### Configure NAT forwarding for RDP lab access
 
@@ -491,17 +533,17 @@ RRAS NAT is configured with a forwarding rule for RDP testing from the external 
 
 ![NAT RDP Port Forward Rule](images/06-remote-management/06-nat-rdp-port-forward-rule.png)
 
-<p><sub><strong>Screenshot:</strong> NAT port forwarding rule for RDP lab access.</sub></p>
+<p><sub><strong>Screenshot 061 - NAT RDP Port Forward Rule:</strong> NAT port forwarding rule for RDP lab access.</sub></p>
 
 ### Validate the forwarded RDP connection
 
-The external RDP test confirms that the NAT forwarding rule works. This validates the lab concept, but it should not be treated as a production exposure model.
+The RDP connection is initiated from the physical host computer rather than from another virtual machine inside the lab. The host connects to SAMNAT's WAN address at `192.168.68.109:5589`, and RRAS forwards the session to the internal RDP destination.
 
-> The validation confirms that traffic reaches the correct internal target through SAMNAT. It also gives a clear place to discuss why production remote access should use safer controls such as VPN, RD Gateway, MFA, and source restrictions.
+> Testing from the physical computer validates the complete external-to-internal path: the connection reaches the WAN interface, matches the forwarding rule, and is translated to the internal system. Direct RDP forwarding remains a lab-only design; production access should use VPN or RD Gateway with MFA and source restrictions.
 
 ![RDP Port Forward Validation](images/06-remote-management/07-rdp-port-forward-validation.png)
 
-<p><sub><strong>Screenshot:</strong> External RDP validation through the forwarded lab port.</sub></p>
+<p><sub><strong>Screenshot 062 - RDP Port Forward Validation:</strong> RDP connection initiated from the physical host through SAMNAT's forwarded lab port.</sub></p>
 
 ---------
 
@@ -530,7 +572,7 @@ Domain systems are configured to use the internal domain DNS servers. This is re
 
 ![Windows 10 DNS Client Settings](images/07-dns/05-win10-dns-client-settings.png)
 
-<p><sub><strong>Screenshot:</strong> Windows 10 DNS client settings pointing to the domain DNS server.</sub></p>
+<p><sub><strong>Screenshot 067 - Windows 10 DNS Client Settings:</strong> Windows 10 DNS client settings pointing to the domain DNS server.</sub></p>
 
 ### Configure external DNS forwarding
 
@@ -540,7 +582,7 @@ External forwarding is configured so internal DNS servers can forward unresolved
 
 ![DC1 External Forwarder](images/07-dns/08-dc1-external-forwarder.png)
 
-<p><sub><strong>Screenshot:</strong> DC1 external DNS forwarder configured for recursive resolution.</sub></p>
+<p><sub><strong>Screenshot 070 - DC1 External Forwarder:</strong> DC1 external DNS forwarder configured for recursive resolution.</sub></p>
 
 ### Create a controlled zone for Facebook blocking
 
@@ -550,7 +592,7 @@ The lab creates a DNS zone for `facebook.com` and adds a controlled host record 
 
 ![Facebook Zone Name](images/07-dns/11-facebook-zone-name.png)
 
-<p><sub><strong>Screenshot:</strong> Facebook.com zone name configuration.</sub></p>
+<p><sub><strong>Screenshot 073 - Facebook Zone Name:</strong> Facebook.com zone name configuration.</sub></p>
 
 ### Validate the Facebook resolution result
 
@@ -560,37 +602,37 @@ The client validation shows that the configured DNS response prevents normal acc
 
 ![Facebook Resolution Block Validation](images/07-dns/13-facebook-resolution-block-validation.png)
 
-<p><sub><strong>Screenshot:</strong> Client validation showing blocked or unreachable Facebook resolution.</sub></p>
+<p><sub><strong>Screenshot 075 - Facebook Resolution Block Validation:</strong> Client validation showing blocked or unreachable Facebook resolution.</sub></p>
 
 ### Discover Google name servers
 
-`nslookup` is used to identify Google DNS name server data before creating a conditional forwarder.
+`nslookup` is run from the Windows 10 client with the query type set to `NS`. The client sends the request to DC1 at `192.168.116.200` and receives the authoritative Google name servers, including `ns1.google.com`, `ns2.google.com`, `ns3.google.com`, and `ns4.google.com`.
 
-> `nslookup` is a basic troubleshooting tool for checking how names resolve and which name servers are responsible for a domain. Using it before configuration helps confirm the target DNS information instead of guessing.
+> The successful response confirms that the client is using DC1 as its DNS server and that DC1 can resolve external DNS data. The `Server: Unknown` label only indicates that a reverse PTR record is not available for the DNS server address; it does not mean the lookup failed.
 
 ![Google nslookup Output](images/07-dns/14-google-nslookup-output.png)
 
-<p><sub><strong>Screenshot:</strong> `nslookup` output for Google DNS records.</sub></p>
+<p><sub><strong>Screenshot 076 - Google nslookup Output:</strong> `nslookup` output for Google DNS records.</sub></p>
 
 ### Configure a Google conditional forwarder
 
-The conditional forwarder sends queries for `google.com` to a specific upstream server.
+DC1 is configured with a conditional forwarder for `google.com` that sends matching queries to `ns1.google.com` at `216.239.32.10`. Queries for other domains continue to use the server's normal DNS resolution path.
 
-> A conditional forwarder is more specific than a general forwarder. It tells DNS to send queries for one domain to selected DNS servers, which is useful when different namespaces need different resolution paths.
+> Conditional forwarding creates a domain-specific resolution path. It is commonly used when an organization must resolve a partner domain, a private namespace, or another Active Directory forest through designated DNS servers without changing resolution for every other domain. Google is used here to demonstrate the mechanism in the lab.
 
 ![Google Conditional Forwarder](images/07-dns/15-google-conditional-forwarder.png)
 
-<p><sub><strong>Screenshot:</strong> Google conditional forwarder configured with a master server.</sub></p>
+<p><sub><strong>Screenshot 077 - Google Conditional Forwarder:</strong> Google conditional forwarder configured with a master server.</sub></p>
 
 ### Configure a Yahoo stub zone
 
-A stub zone is configured using Yahoo name server information. Stub zones hold enough data to locate authoritative DNS servers for another zone.
+A stub zone for `yahoo.com` is created from the master server `ns2.yahoo.com` at `68.142.255.16`. DC1 uses that server to obtain the zone's SOA record, NS records, and the address records needed to locate Yahoo's authoritative DNS servers.
 
-> A stub zone does not contain the full zone data. It stores only the records needed to find the authoritative DNS servers, which makes it useful for learning how DNS delegation and authoritative resolution work.
+> Unlike a conditional forwarder, which sends matching queries to a fixed DNS server, a stub zone maintains a small, refreshable list of authoritative servers for the target zone. This is useful when DNS should follow the authoritative server set as it changes without storing a complete copy of the external zone.
 
 ![Yahoo Stub Zone Master Servers](images/07-dns/17-yahoo-stub-zone-master-servers.png)
 
-<p><sub><strong>Screenshot:</strong> Stub zone master servers for Yahoo.</sub></p>
+<p><sub><strong>Screenshot 079 - Yahoo Stub Zone Master Servers:</strong> Stub zone master servers for Yahoo.</sub></p>
 
 ### Create a secondary DNS zone
 
@@ -600,27 +642,43 @@ The lab creates a primary zone on DC1 and a secondary zone on DC2. The secondary
 
 ![Secondary Zone Master IP](images/07-dns/21-secondary-zone-master-ip.png)
 
-<p><sub><strong>Screenshot:</strong> Primary DNS server IP used for secondary zone transfer.</sub></p>
+<p><sub><strong>Screenshot 083 - Secondary Zone Master IP:</strong> Primary DNS server IP used for secondary zone transfer.</sub></p>
 
-### Validate the mail host record
+### Create and validate a New Host record
 
-The source task described CNAME creation, but the evidence shows a host `A` record named `mail` pointing to `192.168.116.200`. A true CNAME would point an alias to an existing canonical hostname such as `samdc1.samueldomain.com`.
+The **New Host** action in DNS Manager creates an `A` record that maps a readable host name to an IPv4 address. In this step, the name `mail` is mapped to DC1 at `192.168.116.200`, creating the fully qualified domain name `mail.samueldomain.com`.
 
-> An `A` record maps a name directly to an IP address, while a `CNAME` record maps an alias to another hostname. Documenting the difference keeps the project technically accurate and shows that DNS record types were reviewed, not copied blindly.
+> New Host records allow users and applications to reach systems by name instead of remembering IP addresses. They can identify web servers, mail services, file servers, application endpoints, printers, and other network devices. The `ping -a mail` test from the Windows 10 client confirms that the new name resolves to the intended address.
 
 ![Mail A Record Created](images/07-dns/23-mail-a-record-created.png)
 
-<p><sub><strong>Screenshot:</strong> Mail A record created for lab name-resolution validation.</sub></p>
+<p><sub><strong>Screenshot 085 - Mail A Record Created:</strong> Mail A record created for lab name-resolution validation.</sub></p>
 
-### Validate DNS round robin
+After the record is created, PC1 resolves `mail.samueldomain.com` to `192.168.116.200` and receives replies from DC1. This confirms that the New Host record is available to domain clients through the internal DNS service.
 
-Multiple host records with the same name are used to demonstrate round robin behavior, where repeated queries can return different IP addresses.
+![Mail Host Record Validation](images/07-dns/24-mail-record-ping-validation.png)
 
-> Round robin DNS is a simple way to distribute client requests across multiple IP addresses. It is not full load balancing, because it does not check server health, but it demonstrates how DNS can influence traffic distribution.
+<p><sub><strong>Screenshot 086 - Mail Host Record Validation:</strong> PC1 resolving and reaching the new `mail.samueldomain.com` host record.</sub></p>
+
+### Configure and validate DNS round robin
+
+DNS round robin is a basic load-distribution method that places several IP addresses behind one host name. DC1 rotates the order of those addresses in its responses, helping spread client requests across multiple equivalent servers instead of directing every request to one system.
+
+First, three `A` records are created with the same test hostname and different Google server addresses. The **Enable round robin** option is then enabled in the advanced properties of the DC1 DNS service. Finally, repeated `nslookup` queries are run from PC1 to confirm that the returned address order changes.
+
+> Round robin can reduce the concentration of traffic on one server and improve basic service distribution. It is not a full load balancer because DNS does not check whether a server is healthy, and client-side DNS caching can influence which address is selected.
+
+![Round Robin Host Records](images/07-dns/25-round-robin-host-records.png)
+
+<p><sub><strong>Screenshot 087 - Round Robin Host Records:</strong> Three host records using the same name and different IP addresses for round robin.</sub></p>
+
+![Enable DNS Round Robin](images/07-dns/26-round-robin-enabled.png)
+
+<p><sub><strong>Screenshot 088 - Enable DNS Round Robin:</strong> Round robin enabled in the advanced properties of the DC1 DNS service.</sub></p>
 
 ![Round Robin Validation](images/07-dns/27-round-robin-validation.png)
 
-<p><sub><strong>Screenshot:</strong> Round robin validation showing changing returned addresses.</sub></p>
+<p><sub><strong>Screenshot 089 - Round Robin Validation:</strong> Repeated `nslookup` queries from PC1 showing the returned addresses in a different order.</sub></p>
 
 ---------
 
@@ -646,7 +704,7 @@ A profile folder is created on DC1 to store roaming profile data centrally.
 
 ![Profile Folder Created](images/08-roaming-profiles/01-profile-folder-created.png)
 
-<p><sub><strong>Screenshot:</strong> Roaming profile root folder created on DC1.</sub></p>
+<p><sub><strong>Screenshot 090 - Profile Folder Created:</strong> Roaming profile root folder created on DC1.</sub></p>
 
 ### Configure profile share permissions
 
@@ -656,7 +714,7 @@ The folder is shared so users can access their roaming profile location through 
 
 ![Advanced Sharing for Profile Folder](images/08-roaming-profiles/04-advanced-sharing-for-profile-folder.png)
 
-<p><sub><strong>Screenshot:</strong> Advanced sharing configuration for the profile folder.</sub></p>
+<p><sub><strong>Screenshot 093 - Advanced Sharing for Profile Folder:</strong> Advanced sharing configuration for the profile folder.</sub></p>
 
 ### Assign the profile path in AD
 
@@ -666,7 +724,7 @@ The user object receives a profile path that points to the roaming profile share
 
 ![AD Profile Path](images/08-roaming-profiles/05-ad-profile-path.png)
 
-<p><sub><strong>Screenshot:</strong> Active Directory profile path configured for a user.</sub></p>
+<p><sub><strong>Screenshot 094 - AD Profile Path:</strong> Active Directory profile path configured for a user.</sub></p>
 
 ### Confirm profile folder creation
 
@@ -676,25 +734,31 @@ After the user signs in, the server-side profile folder is created automatically
 
 ![User Profile Folder Created](images/08-roaming-profiles/06-user-profile-folder-created.png)
 
-<p><sub><strong>Screenshot:</strong> User profile folders created after logon.</sub></p>
+<p><sub><strong>Screenshot 095 - User Profile Folder Created:</strong> User profile folders created after logon.</sub></p>
 
 ### Convert the profile to mandatory
 
-The profile is converted to a mandatory profile by renaming `NTUSER.DAT` to `NTUSER.MAN`. This prevents user changes from persisting.
+After the roaming profile has been created and the user is logged off, the administrator opens the server-side profile folder and renames `NTUSER.DAT` to `NTUSER.MAN`. Windows then loads the profile as mandatory during the next sign-in.
 
-> `NTUSER.DAT` stores user-specific registry settings. Renaming it to `NTUSER.MAN` makes the profile mandatory, which means users receive a consistent environment and their changes are discarded after logoff.
+> `NTUSER.DAT` contains user-specific registry settings such as desktop and application preferences. Renaming it to `NTUSER.MAN` makes those settings read-only from the user's perspective: the user can work normally during the session, but profile changes are discarded at sign-out. Mandatory profiles are useful for shared workstations, training rooms, and other environments that require the same controlled desktop at every logon.
 
 ![NTUSER.MAN Mandatory Profile](images/08-roaming-profiles/11-ntuser-man-mandatory-profile.png)
 
-<p><sub><strong>Screenshot:</strong> `NTUSER.MAN` conversion for a mandatory profile.</sub></p>
+<p><sub><strong>Screenshot 100 - NTUSER.MAN Mandatory Profile:</strong> `NTUSER.MAN` conversion for a mandatory profile.</sub></p>
+
+The User Profiles control panel reports the account profile as `Mandatory`, confirming that Windows recognizes the conversion rather than treating it as a standard local or roaming profile.
+
+![Mandatory Profile Validation](images/08-roaming-profiles/12-mandatory-profile-visible.png)
+
+<p><sub><strong>Screenshot 101 - Mandatory Profile Validation:</strong> The User Profiles window on PC1 reporting `SAMUELDOMAIN\user10` as a Mandatory profile.</sub></p>
 
 ---------
 
 ## File Services and Access Control
 
-DC2 is configured as a file server. The lab creates home folders, a shared DATA folder, a script share, mapped drives, FSRM quotas, and file screening.
+DC2 is configured as a file server. The lab creates home folders, a shared DATA folder, a script share, mapped drives, and an FSRM quota.
 
-The purpose is to demonstrate how enterprise file access is controlled through layers: share permissions, NTFS permissions, AD groups, mapped drives, quota limits, and file-type restrictions. AD defines users and groups, while NTFS and FSRM enforce access and storage behavior on the file server.
+The purpose is to demonstrate how enterprise file access is controlled through layers: share permissions, NTFS permissions, AD groups, mapped drives, and quota limits. AD defines users and groups, NTFS and share permissions enforce access, and FSRM controls storage consumption.
 
 **Implemented controls:**
 
@@ -703,7 +767,7 @@ The purpose is to demonstrate how enterprise file access is controlled through l
 - Configured group-based DATA share permissions.
 - Validated allowed and denied user actions.
 - Built a script-based drive mapping with `net use`.
-- Enforced FSRM quota and AVI file-screening controls.
+- Enforced a 5 GB hard quota with FSRM.
 
 ### Install the File Server role
 
@@ -713,7 +777,7 @@ DC2 is prepared to host file shares for domain users.
 
 ![File Server Role Selection](images/09-file-server/01-file-server-role-selection.png)
 
-<p><sub><strong>Screenshot:</strong> File Server role selected on DC2.</sub></p>
+<p><sub><strong>Screenshot 102 - File Server Role Selection:</strong> File Server role selected on DC2.</sub></p>
 
 ### Create the home folder root
 
@@ -723,7 +787,7 @@ The home folder root is created and shared so each user can receive a personal m
 
 ![Home Folder Root Created](images/09-file-server/02-home-folder-root-created.png)
 
-<p><sub><strong>Screenshot:</strong> Home folder root created on DC2.</sub></p>
+<p><sub><strong>Screenshot 103 - Home Folder Root Created:</strong> Home folder root created on DC2.</sub></p>
 
 ### Map home folders through AD
 
@@ -733,7 +797,7 @@ The AD user properties are configured with a home folder path. Windows creates t
 
 ![AD Home Folder Mapping](images/09-file-server/05-ad-home-folder-mapping.png)
 
-<p><sub><strong>Screenshot:</strong> Home folder mapping configured in AD user properties.</sub></p>
+<p><sub><strong>Screenshot 106 - AD Home Folder Mapping:</strong> Home folder mapping configured in AD user properties.</sub></p>
 
 ### Validate mapped home drives
 
@@ -743,7 +807,7 @@ The Windows 10 client shows the mapped home drive, confirming the user folder ma
 
 ![Mapped Home Drive Visible](images/09-file-server/07-mapped-home-drive-visible.png)
 
-<p><sub><strong>Screenshot:</strong> Mapped home drive visible on the client.</sub></p>
+<p><sub><strong>Screenshot 108 - Mapped Home Drive Visible:</strong> Mapped home drive visible on the client.</sub></p>
 
 ### Configure DATA share permissions
 
@@ -755,7 +819,13 @@ The security goal is to avoid assigning access directly to individual users. Gro
 
 ![SysAdmins Modify Permission](images/09-file-server/11-sysadmins-modify-permission.png)
 
-<p><sub><strong>Screenshot:</strong> Sys_Admins Modify permission on the DATA share.</sub></p>
+<p><sub><strong>Screenshot 112 - SysAdmins Modify Permission:</strong> Sys_Admins Modify permission on the DATA share.</sub></p>
+
+The `Sales_group` receives **Read and Execute**, **List folder contents**, and **Read** permissions. These permissions allow Sales users to open the shared folder and read its contents without granting the ability to modify or delete files.
+
+![Sales Read and Execute Permission](images/09-file-server/12-sales-read-execute-permission.png)
+
+<p><sub><strong>Screenshot 113 - Sales Read and Execute Permission:</strong> Sales_group granted Read and Execute access to the DATA folder.</sub></p>
 
 ### Validate restricted Sales permissions
 
@@ -765,17 +835,37 @@ The Sales user test confirms that the user can access the share but cannot delet
 
 ![Sales Delete Denied Test](images/09-file-server/14-sales-delete-denied-test.png)
 
-<p><sub><strong>Screenshot:</strong> Sales user denied delete operation.</sub></p>
+<p><sub><strong>Screenshot 115 - Sales Delete Denied Test:</strong> Sales user denied delete operation.</sub></p>
 
 ### Create a script-based drive mapping
 
-A batch script uses `net use` to map the DATA share as a network drive. This demonstrates a simple scripted access method.
+A shared `Script` folder is prepared on DC2 to store the batch file used by domain clients. In this isolated lab, `Everyone` receives Modify access so the script can be reached and updated during testing.
 
-> `net use` is a classic Windows command for mapping network drives. Even though Group Policy Preferences are often cleaner in production, this script shows how network resources can be connected automatically and repeatably.
+> Broad `Everyone` Modify permission is convenient for a training environment but is not appropriate for production. A real deployment should normally grant users only Read and Execute access while limiting script modification to an administrative group, because a writable logon or mapping script could be altered to execute unwanted commands.
+
+![Script Folder Permissions](images/09-file-server/15-script-share-everyone-modify.png)
+
+<p><sub><strong>Screenshot 116 - Script Folder Permissions:</strong> Lab permissions on the Script folder allowing Everyone to modify its contents.</sub></p>
+
+The folder is shared as `\\SAMDC2\Script`, giving workstations a UNC path that does not depend on the local drive layout of the server.
+
+![Script Share Network Path](images/09-file-server/16-script-share-network-path.png)
+
+<p><sub><strong>Screenshot 117 - Script Share Network Path:</strong> Script folder shared from DC2 through the `\\SAMDC2\Script` network path.</sub></p>
+
+The `Script.bat` file contains `net use X: \\Samdc2\data`. When the batch file runs, Windows connects the DATA share and assigns it the drive letter `X:`. This demonstrates a simple, repeatable method for providing users with a familiar drive letter for a network resource.
+
+> `net use` is the classic Windows command for connecting a network share. Group Policy Preferences are generally easier to target and maintain in a larger production environment, but the batch-file method clearly demonstrates the underlying mapping command.
 
 ![Net Use Batch Script](images/09-file-server/17-net-use-batch-script.png)
 
-<p><sub><strong>Screenshot:</strong> Batch script using `net use` to map the DATA share.</sub></p>
+<p><sub><strong>Screenshot 118 - Net Use Batch Script:</strong> Batch script using `net use` to map the DATA share.</sub></p>
+
+After the script runs on `SAMWINPC1`, File Explorer shows `data (\\Samdc2) (X:)` under Network locations. This confirms that the client resolved DC2, reached the DATA share, and created the requested drive mapping.
+
+![Script Mapped Drive Validation](images/09-file-server/18-script-mapped-drive-validation.png)
+
+<p><sub><strong>Screenshot 119 - Script Mapped Drive Validation:</strong> DATA share mapped as drive X on SAMWINPC1 after running the batch script.</sub></p>
 
 ### Configure a 5 GB hard quota
 
@@ -785,35 +875,24 @@ File Server Resource Manager is used to enforce a hard quota on home folders. Th
 
 ![Hard Quota 5GB](images/09-file-server/21-hard-quota-5gb.png)
 
-<p><sub><strong>Screenshot:</strong> Hard quota configured for a 5 GB limit.</sub></p>
-
-### Configure AVI file screening
-
-File screening is configured to block AVI files in the selected folder path. This controls file types separately from quota limits.
-
-> File screening helps prevent unwanted file types from being stored on managed shares. In this lab, AVI blocking demonstrates storage governance and basic data-control policy, separate from who has access to the folder.
-
-![AVI File Screen Settings](images/09-file-server/23-avi-file-screen-settings.png)
-
-<p><sub><strong>Screenshot:</strong> AVI file screen settings.</sub></p>
+<p><sub><strong>Screenshot 122 - Hard Quota 5GB:</strong> Hard quota configured for a 5 GB limit.</sub></p>
 
 ---------
 
 ## Group Policy Hardening and Software Deployment
 
-Group Policy is used to restrict standard users, allow exceptions for administrators, add `Sys_Admins` to local Administrators, and deploy software.
+Group Policy is used to restrict standard users, add `Sys_Admins` to local Administrators, and deploy software.
 
 This section demonstrates centralized endpoint control. Instead of configuring each workstation manually, GPOs apply consistent restrictions and settings based on domain structure and security groups.
 
-The hardening focus is to reduce the standard user's ability to change workstation behavior, launch administrative tools, or move data through removable media. Administrator exceptions are kept separate so support work remains possible without weakening the baseline for everyone.
+The hardening focus is to reduce the standard user's ability to change workstation behavior, launch administrative tools, or move data through removable media.
 
 **Implemented controls:**
 
 - Created client-hardening GPOs.
 - Restricted Command Prompt and Control Panel access for standard users.
 - Blocked removable storage access.
-- Configured administrator exceptions.
-- Added `Sys_Admins` to local Administrators through policy.
+- Configured a Restricted Groups policy intended to add `Sys_Admins` to local Administrators on managed workstations.
 - Deployed Notepad++ through GPO software installation.
 
 ### Open Group Policy Management
@@ -824,7 +903,7 @@ The Group Policy Management console provides centralized control for domain-link
 
 ![Group Policy Management Opened](images/10-group-policy-hardening/01-group-policy-management-opened.png)
 
-<p><sub><strong>Screenshot:</strong> Group Policy Management opened.</sub></p>
+<p><sub><strong>Screenshot 125 - Group Policy Management Opened:</strong> Group Policy Management opened.</sub></p>
 
 ### Create a client-hardening GPO
 
@@ -834,39 +913,27 @@ A new GPO is created for client restrictions such as Command Prompt, Control Pan
 
 ![Create New Hardening GPO](images/10-group-policy-hardening/03-create-new-hardening-gpo.png)
 
-<p><sub><strong>Screenshot:</strong> Creating a new hardening GPO.</sub></p>
+<p><sub><strong>Screenshot 127 - Create New Hardening GPO:</strong> Creating a new hardening GPO.</sub></p>
 
-### Configure removable storage restrictions
+### Restrict Command Prompt access
 
-The policy blocks removable storage access. This helps reduce data exfiltration and unauthorized removable media use.
+Inside **User Configuration > Policies > Administrative Templates > System**, the **Prevent access to the command prompt** setting is enabled in the `BLOCK CMD & CP` GPO. This prevents targeted standard users from launching `cmd.exe` and reduces their ability to run interactive command-line tools or unapproved batch commands.
 
-> Removable media can be used to copy data out of the environment or introduce untrusted files. Blocking it through policy is a common endpoint-hardening control for standard users.
+> Blocking Command Prompt is an endpoint restriction, not a complete application-control solution. PowerShell, scripts, and other interpreters should be governed separately when stronger execution control is required, for example through AppLocker or Windows Defender Application Control.
 
-![Removable Storage Deny Policy](images/10-group-policy-hardening/08-removable-storage-deny-policy.png)
+![Command Prompt Access Blocked](images/10-group-policy-hardening/05-command-prompt-deny-policy.png)
 
-<p><sub><strong>Screenshot:</strong> Removable storage deny policy.</sub></p>
+<p><sub><strong>Screenshot 129 - Command Prompt Access Blocked:</strong> Prevent access to the command prompt enabled in the BLOCK CMD & CP GPO.</sub></p>
 
-### Configure administrator exceptions
+### Restrict access to Control Panel and PC settings
 
-`Sys_Admins` receive an exception policy for administrative tools where required.
+Inside **User Configuration > Policies > Administrative Templates > Control Panel**, the **Prohibit access to Control Panel and PC settings** policy is enabled. This prevents standard users from opening both the traditional Control Panel and the Windows Settings application through `Control.exe` and `SystemSettings.exe`.
 
-> Hardening should not block legitimate administration. Exceptions allow approved administrators to keep the tools they need while standard users remain restricted.
+> Centralizing this restriction helps prevent users from changing system options that could weaken the workstation baseline, interfere with support, or bypass other administrative controls. Because it is a user-side policy, it follows the targeted domain user when that user signs in to an affected workstation.
 
-![SysAdmins Command Prompt Exception](images/10-group-policy-hardening/06-sysadmins-command-prompt-exception.png)
+![Control Panel and PC Settings Restricted](images/10-group-policy-hardening/04-hardening-gpo-editor-settings.png)
 
-<p><sub><strong>Screenshot:</strong> Sys_Admins exception policy for Command Prompt.</sub></p>
-
-### Add Sys_Admins to local Administrators
-
-Restricted Groups are used to place `Sys_Admins` into local Administrators on domain workstations. This is powerful and should be scoped carefully in production.
-
-> Restricted Groups can enforce local group membership from the domain. This is useful for consistent admin access, but it is also sensitive because local administrator rights can fully control a workstation.
-
-> Security note: Local administrator membership should be limited, reviewed, and monitored. In production, this kind of access should be tied to least privilege and privileged-access procedures.
-
-![Restricted Groups Membership](images/10-group-policy-hardening/11-restricted-groups-membership.png)
-
-<p><sub><strong>Screenshot:</strong> Restricted Groups membership configuration.</sub></p>
+<p><sub><strong>Screenshot 128 - Control Panel and PC Settings Restricted:</strong> Prohibit access to Control Panel and PC settings enabled in the BLOCK CMD & CP GPO.</sub></p>
 
 ### Validate standard-user restriction
 
@@ -876,37 +943,87 @@ The standard user is blocked from accessing Control Panel, confirming that the h
 
 ![Standard User Control Panel Blocked](images/10-group-policy-hardening/12-standard-user-control-panel-blocked.png)
 
-<p><sub><strong>Screenshot:</strong> Standard user blocked from Control Panel.</sub></p>
+<p><sub><strong>Screenshot 136 - Standard User Control Panel Blocked:</strong> Standard user blocked from Control Panel.</sub></p>
+
+### Configure removable storage restrictions
+
+The `BLOCK Disk On Key` GPO is linked at the domain level so the removable-storage restriction can be processed by the targeted domain users and computers.
+
+![Block Disk On Key GPO Link](images/10-group-policy-hardening/09-gpo-linking-overview.png)
+
+<p><sub><strong>Screenshot 133 - Block Disk On Key GPO Link:</strong> BLOCK Disk On Key GPO linked beneath the SamuelDomain.com domain.</sub></p>
+
+The removable-storage policy denies access to removable media. This helps reduce data exfiltration, unauthorized copying, and the introduction of untrusted files from USB storage devices.
+
+> Removable media can be used to copy data out of the environment or introduce untrusted files. Blocking it through policy is a common endpoint-hardening control for standard users.
+
+![Removable Storage Deny Policy](images/10-group-policy-hardening/08-removable-storage-deny-policy.png)
+
+<p><sub><strong>Screenshot 132 - Removable Storage Deny Policy:</strong> Removable storage deny policy.</sub></p>
+
+### Add Sys_Admins to local Administrators
+
+The `Add to Local Admins` GPO is linked under `Sys_Admins` in Group Policy Management. This screenshot records where the policy was linked before its Restricted Groups setting is reviewed.
+
+![Add to Local Admins GPO](images/10-group-policy-hardening/10-add-sysadmins-to-local-admins-gpo.png)
+
+<p><sub><strong>Screenshot 134 - Add to Local Admins GPO:</strong> Add to Local Admins GPO linked beneath the Sys_Admins OU.</sub></p>
+
+Restricted Groups are configured with the intention of placing `Sys_Admins` into the local Administrators group on managed workstations. Because this setting is under **Computer Configuration**, the GPO must be linked where the target computer accounts are located, or otherwise scoped so those computers receive it.
+
+> Restricted Groups can enforce local group membership from the domain. Linking the GPO only to an OU that contains administrator user accounts does not apply the computer-side setting to workstations. Correct validation should include `gpresult /scope computer /r` and `net localgroup administrators` on a target client.
+
+> Security note: Local administrator membership should be limited, reviewed, and monitored. In production, this kind of access should be tied to least privilege and privileged-access procedures.
+
+![Restricted Groups Membership](images/10-group-policy-hardening/11-restricted-groups-membership.png)
+
+<p><sub><strong>Screenshot 135 - Restricted Groups Membership:</strong> Restricted Groups membership configuration.</sub></p>
+
+### Apply Sys_Admins workstation rules
+
+The `Allow CMD & CP` GPO is linked beneath `Sys_Admins`. It provides a separate user-policy scope for approved administrators who need Command Prompt and Control Panel access for support and troubleshooting.
+
+![SysAdmins GPO Link](images/10-group-policy-hardening/02-gpo-list-overview.png)
+
+<p><sub><strong>Screenshot 126 - SysAdmins GPO Link:</strong> Allow CMD & CP GPO linked beneath the Sys_Admins OU.</sub></p>
+
+Inside this policy, **Prevent access to the command prompt** is set to **Disabled**. Disabling the restriction means the policy does not block `cmd.exe` for the targeted Sys_Admins users.
+
+![SysAdmins Command Prompt Rule](images/10-group-policy-hardening/06-sysadmins-command-prompt-exception.png)
+
+<p><sub><strong>Screenshot 130 - SysAdmins Command Prompt Rule:</strong> Command Prompt restriction disabled in the Sys_Admins policy.</sub></p>
+
+The **Prohibit access to Control Panel and PC settings** setting is also disabled in the same administrative policy, allowing the targeted administrators to open management interfaces required for their work.
+
+![SysAdmins Control Panel Rule](images/10-group-policy-hardening/07-sysadmins-control-panel-exception.png)
+
+<p><sub><strong>Screenshot 131 - SysAdmins Control Panel Rule:</strong> Control Panel and PC Settings restriction disabled in the Sys_Admins policy.</sub></p>
 
 ### Deploy software through GPO
 
-The lab assigns a Notepad++ MSI package through Group Policy software installation.
+The Notepad++ 8.5 MSI package is assigned under **Computer Configuration > Policies > Software Settings > Software installation**. The package uses the UNC source `\\samdc2\Software\Notepad++.msi`, allowing targeted domain computers to reach the same network location while Group Policy is processed.
 
-> Software deployment through GPO allows administrators to distribute approved applications without manually installing them on every workstation. MSI packages are used because Group Policy software installation is designed around Windows Installer packages.
+> Assigning an MSI through Computer Configuration allows Windows to install an approved application centrally instead of requiring a manual installation on every endpoint. A UNC path is essential because client computers cannot access a package stored only on the administrator's local `C:` drive.
 
 ![Software Installation Assigned](images/10-group-policy-hardening/15-software-installation-assigned.png)
 
-<p><sub><strong>Screenshot:</strong> Software installation package assigned through GPO.</sub></p>
+<p><sub><strong>Screenshot 139 - Software Installation Assigned:</strong> Notepad++ 8.5 assigned through GPO from the shared UNC package path on SAMDC2.</sub></p>
 
 ### Validate software deployment
 
-The Windows 10 client shows that Notepad++ deployment succeeded.
+The Windows 10 client `SAMWINPC1` shows Notepad++ installed after the computer received the software-deployment policy. Together with the preceding GPO configuration, this provides end-to-end evidence that the MSI was assigned from the server share and successfully deployed to the target workstation through Group Policy.
 
-> Client validation proves that the package was reachable, assigned correctly, and installed on the workstation. This confirms the deployment path from GPO configuration to endpoint result.
+> This validation connects the administrative configuration to the endpoint result: the first screenshot shows the package assigned through GPO from `\\samdc2\Software\Notepad++.msi`, and the second shows Notepad++ available on the Windows 10 client.
 
 ![Software Deployment Validation](images/10-group-policy-hardening/16-software-deployment-validation.png)
 
-<p><sub><strong>Screenshot:</strong> Notepad++ deployment validation on Windows 10.</sub></p>
+<p><sub><strong>Screenshot 140 - Software Deployment Validation:</strong> Notepad++ installed and available on SAMWINPC1 after GPO software deployment.</sub></p>
 
 ---------
 
 ## Password Policy and Account Security
 
-The lab configures domain password controls and demonstrates a separate Sales password-policy scenario.
-
-For production Active Directory environments, different password policies for different groups should normally be implemented with Fine-Grained Password Policies and Password Settings Objects rather than ordinary OU-linked GPO Account Policies.
-
-The goal is to show how password policy contributes to account security by enforcing minimum password length, complexity, age, and history requirements. The Sales scenario is preserved as lab evidence while documenting the more accurate production approach.
+The lab configures a domain-wide password baseline through Group Policy. A centrally managed policy ensures that domain users follow the same credential requirements regardless of which joined workstation they use.
 
 Password policy is only one layer of account defense. It should support, not replace, account lockout policy, MFA, privileged account monitoring, and a clear process for handling compromised credentials.
 
@@ -914,39 +1031,32 @@ Password policy is only one layer of account defense. It should support, not rep
 
 - Configured domain password history and age requirements.
 - Enforced minimum password length and complexity.
-- Demonstrated a Sales-specific password policy scenario.
-- Validated password-change behavior from the client side.
-- Documented the production-correct Fine-Grained Password Policy approach.
+- Linked the `PassPolicy` GPO at the domain level so it can provide the password baseline for domain accounts.
 
 ### Configure the domain password policy
 
-The policy defines password history, age, minimum length, and complexity requirements.
+The `PassPolicy` GPO defines a consistent password baseline for domain accounts. It remembers the previous eight passwords, sets a maximum password age of 75 days, prevents another password change for 30 days, requires at least eight characters, and enables Windows complexity requirements.
 
-> Domain password policy sets the baseline rules for user credentials. Length, complexity, history, and age settings reduce weak password reuse and make simple password attacks harder.
+Each setting addresses a different credential risk:
+
+- **Password history: 8 passwords** prevents users from immediately reusing recent credentials.
+- **Maximum password age: 75 days** limits how long the same password remains active in this lab. In modern production environments, forced periodic changes should be balanced against current security guidance and should always occur after suspected compromise.
+- **Minimum password age: 30 days** prevents users from rapidly changing passwords several times to bypass password history. This value is intentionally strict for the exercise; production environments normally use a shorter minimum age to avoid blocking legitimate password changes.
+- **Minimum length: 8 characters** increases the number of possible password combinations. For production systems, longer password phrases are preferable because length usually provides stronger resistance to guessing and offline cracking than complexity alone.
+- **Complexity enabled** requires a mixture of character categories and prevents use of the account name inside the password. This helps reject simple, predictable choices, but it should be combined with longer passwords and known-compromised-password screening.
+- **Reversible encryption: Not Defined** means this GPO does not enable that option. Reversible password storage should remain disabled unless a documented legacy requirement makes it unavoidable, because it provides protection similar to storing plaintext credentials.
+
+> A domain password policy reduces the risk of weak passwords, repeated credential reuse, password-history bypass, and long-lived compromised credentials. Linking the policy at the domain root is important because domain-account password settings are processed as a domain-wide security baseline.
 
 ![Domain Password Policy Settings](images/11-password-policy/01-domain-password-policy-settings.png)
 
-<p><sub><strong>Screenshot:</strong> Domain password policy settings.</sub></p>
+<p><sub><strong>Screenshot 142 - Domain Password Policy Settings:</strong> Domain password policy settings.</sub></p>
 
-### Demonstrate the Sales policy scenario
+The `PassPolicy` GPO is linked directly beneath `SamuelDomain.com` in Group Policy Management. This placement makes the policy part of the domain-level configuration rather than a setting limited to one workstation or user OU.
 
-The lab demonstrates a different policy configuration for Sales. The README documents the production-correct approach while preserving the original evidence.
+![Domain Password Policy Linked](images/11-password-policy/02-password-policy-linked.png)
 
-> In Active Directory, normal domain password policy applies at the domain level. If different groups need different password rules, the correct production method is Fine-Grained Password Policies using Password Settings Objects, not a regular OU-linked GPO Account Policy.
-
-![Sales Password Policy Settings](images/11-password-policy/03-sales-password-policy-settings.png)
-
-<p><sub><strong>Screenshot:</strong> Sales-specific password policy settings.</sub></p>
-
-### Validate password-change behavior
-
-The password-change screen confirms that the password policy scenario was tested from the client side.
-
-> Testing password change behavior confirms that policy settings affect the real user workflow. It also shows whether the user is blocked or allowed according to the configured requirements.
-
-![Password Change Validation](images/11-password-policy/05-password-change-validation.png)
-
-<p><sub><strong>Screenshot:</strong> Password change validation for the Sales policy demonstration.</sub></p>
+<p><sub><strong>Screenshot 143 - Domain Password Policy Linked:</strong> PassPolicy linked at the SamuelDomain.com domain level.</sub></p>
 
 ## Testing and Verification
 
@@ -960,16 +1070,16 @@ The password-change screen confirms that the password policy scenario was tested
 - RDP access was validated from the Windows 10 workstation and through a lab NAT forwarding rule.
 - Roaming and mandatory profile behavior was validated through Windows user profile views and server-side profile folders.
 - File share permissions were validated through successful and blocked user actions.
-- FSRM quota and file screen controls were configured for storage governance.
+- The FSRM hard quota was configured for storage governance.
 - GPO hardening was validated by standard-user restrictions and Sys_Admins exception testing.
-- Software deployment was validated by Notepad++ installation on the Windows 10 client.
-- Password policy behavior was validated through Windows password-change workflow evidence.
+- Notepad++ was visible on the Windows 10 client after the software-deployment exercise.
+- The domain password baseline and its domain-level GPO link were documented.
 
 ## Results
 
 The lab produced a working Windows domain infrastructure with redundant domain controller services, centralized DNS and DHCP, outbound NAT routing, domain-based remote administration, profile management, shared file services, GPO hardening, software deployment, and password policy controls.
 
-Several source-level technical corrections were applied in this GitHub version to keep the documentation accurate while preserving the original lab evidence. Those corrections are documented in [docs/notes.md](docs/notes.md).
+Additional implementation details and production considerations are documented in [docs/notes.md](docs/notes.md).
 
 ## Skills Demonstrated
 
@@ -987,7 +1097,7 @@ Several source-level technical corrections were applied in this GitHub version t
 - Roaming and mandatory profile management
 - NTFS and share permission design
 - Mapped drive scripting
-- File Server Resource Manager quotas and file screening
+- File Server Resource Manager quotas
 - Group Policy hardening
 - GPO software deployment
 - Password policy administration
@@ -1016,12 +1126,5 @@ windows-server-active-directory-lab/
 
 ## Notes
 
-- Lab credentials and the lab domain remain visible in screenshots because they are part of the submitted lab evidence.
-- The attached Excel file was intentionally excluded because it used a different domain and template context.
+- Lab credentials and the lab domain remain visible because they belong to the isolated training environment.
 - RDP exposure through NAT is documented as a lab-only validation, not as a production recommendation.
-
-## Suggested Commit Message
-
-```text
-Add professional GitHub documentation for Windows Server Active Directory lab
-```

@@ -1,25 +1,16 @@
-# Project Notes and Correction Log
+# Technical and Production Notes
 
-## Source Material
+## Repository Scope
 
-- Source PDF: `new.pdf`
-- Source language: Hebrew
-- Repository language: English
-- Excel attachment: intentionally excluded from this repository
+This repository documents the Windows Server lab workflow, configuration decisions, commands, and validation results. It does not include virtual-machine exports or live server configuration backups.
 
-The original PDF was reorganized into a GitHub-ready portfolio repository. The README keeps the technical intent of the source project while improving terminology, structure, and professional wording.
+## Lab Data
 
-## Translation Notes
+The screenshots retain the lab domain, internal IP addresses, test usernames, and lab passwords used during configuration. These values belong to the isolated training environment and must not be reused as production credentials.
 
-The Hebrew source material was translated into professional English. Informal report-style wording was rewritten as technical documentation. The final README avoids school-assignment phrasing and presents the work as a structured Windows infrastructure lab.
+## Image Organization
 
-## Image Handling Notes
-
-The PDF contained 189 embedded image objects. The repository includes 147 selected evidence images.
-
-Duplicate or low-value screenshots were excluded when they showed the same state repeatedly. Images were kept in the same technical order as the lab workflow so each paragraph has matching visual evidence.
-
-Images were organized by topic:
+The repository contains 143 screenshots organized in technical order across these topics:
 
 - Topology
 - Lab environment
@@ -33,95 +24,82 @@ Images were organized by topic:
 - Group Policy hardening
 - Password policy
 
-## Technical Corrections Applied
+Screenshots are preserved by default, organized by chapter, and placed near the relevant explanation whenever they support the guided walkthrough. Each screenshot keeps a stable sequence number and a caption explaining what is visible and what action or result it documents. A screenshot is removed only after explicit review and approval from the project owner.
 
-### 1. Sensitive Lab Data
+## Administrative Automation
 
-The screenshots intentionally retain lab credentials, domain names, usernames, and internal IP addresses because they are part of the project evidence and were approved for inclusion.
+### PowerShell bulk user creation
 
-### 2. Excel File Excluded
-
-`BatchUsersScript.xls` was not included because its visible internal content references a different lab context, including `msclass.net`, `NewUsers`, `NUG`, `MSuser01`, and `1234abcD`. Including it would create confusion with the main `samueldomain.com` project.
-
-### 3. PowerShell User-Creation Loop
-
-The source loop:
-
-```powershell
-for ($i = 50; $i -le 60; $i++)
-```
-
-creates 11 users: `user50` through `user60`.
-
-The README documents the corrected 10-user version:
+The documented loop creates exactly ten accounts, from `user50` through `user59`:
 
 ```powershell
 for ($i = 50; $i -lt 60; $i++)
 ```
 
-This creates `user50` through `user59`.
+PowerShell is the preferred automation method for repeatable Active Directory administration. Initial passwords should be protected, changed at first logon, and never embedded in production scripts.
 
-### 4. NAT/PAT Terminology
+### DSADD
 
-The source describes PAT as a protocol. The README corrects this to describe PAT as a NAT translation method that maps internal sessions through port translations.
+`dsadd` is retained as a command-line administration exercise. It demonstrates distinguished names and scripted object creation, but modern administration should normally use the Active Directory PowerShell module.
 
-### 5. DHCP Failover Terminology
+## Networking and Remote Access
 
-The source refers to a DHCP failover cluster. The README uses the more accurate term `DHCP failover relationship`.
+### NAT and PAT
 
-### 6. RDP Port Forwarding
+PAT is a NAT translation method that allows multiple internal sessions to share an external address by tracking transport-layer ports. It is not a standalone network protocol.
 
-The source demonstrates RDP access through NAT port forwarding. The README keeps the lab evidence but clearly marks this as lab-only. In production, direct RDP exposure should be replaced with VPN, RD Gateway, MFA, source-IP restrictions, and explicit firewall rules.
+### DHCP failover
 
-The source also contains a port mismatch between `5588` and `5589`. The README avoids relying on the conflicting value and documents the concept as a lab NAT forwarding rule.
+The two DHCP servers use a DHCP failover relationship. This provides lease-state synchronization and service continuity without describing the configuration as a general-purpose failover cluster.
 
-### 7. Windows Firewall
+### RDP forwarding
 
-The source screenshots show Windows Defender Firewall disabled in parts of the lab. The README keeps the evidence but notes that a production deployment should keep the firewall enabled and use explicit inbound rules.
+The RDP connection test is initiated from the physical host and reaches the lab through SAMNAT's WAN interface. Direct RDP port forwarding is suitable only for this isolated demonstration. Production remote access should use VPN or RD Gateway, MFA, source-IP restrictions, firewall rules, and privileged-access monitoring.
 
-### 8. User Account vs User Profile
+### Windows Firewall
 
-The source explanation blends the concepts of an AD user account and a Windows profile. The README separates the two:
+Windows Defender Firewall should remain enabled in production. Required services should be permitted with explicit inbound rules instead of disabling host protection.
 
-- AD user account: identity and authentication object.
-- Windows user profile: user settings and data loaded during logon.
+## Identity and User Profiles
 
-### 9. Everyone Permissions
+An Active Directory user account provides identity and authentication. A Windows user profile contains the user's desktop environment, registry settings, and profile data loaded during sign-in.
 
-The source uses `Everyone` permissions for selected lab shares. The README keeps this as lab evidence but notes that production file shares should use least-privilege AD groups.
+Mandatory profiles use `NTUSER.MAN` so profile changes are discarded at sign-out. They are useful for shared or controlled workstations but should be combined with appropriate file storage and user-data policies.
 
-### 10. Quota and File Screening
+## File Services
 
-The source describes quota as an Active Directory control. The README corrects this to File Server Resource Manager and NTFS-based file-server management.
+Active Directory provides identities and group membership, while NTFS ACLs and share permissions enforce file access. FSRM provides the storage quota used in this lab.
 
-AD provides identity and group membership. NTFS ACLs, share permissions, FSRM quotas, and file screens enforce file access and storage controls.
+Broad `Everyone` permissions are used only in isolated lab demonstrations. Production shares should assign access through least-privilege Active Directory security groups.
 
-### 11. Sales Password Policy
+## Group Policy
 
-The source demonstrates a different password policy for Sales through GPO. The README explains that production Active Directory environments should normally use Fine-Grained Password Policies and Password Settings Objects for group-specific password policy behavior.
+Computer Configuration settings apply according to the location and scope of computer accounts. A Restricted Groups policy intended for workstations should therefore be linked to an OU containing those workstations, or scoped through an appropriate domain link and security filtering. Linking it only to an OU containing administrator users does not apply the computer-side setting to client computers.
 
-### 12. DNS CNAME vs A Record
+The Notepad++ package is assigned through GPO from the network-accessible path `\\samdc2\Software\Notepad++.msi`. The Group Policy Management Editor screenshot records the assigned MSI and its UNC source, while the Windows 10 client screenshot shows Notepad++ available on `SAMWINPC1` after deployment. Together they document the server-side configuration and the resulting client installation.
 
-The source task describes creating a CNAME record, but the screenshot evidence shows a `New Host` A record named `mail` pointing to `192.168.116.200`.
+## DNS
 
-The README documents the demonstrated evidence as an A-record validation and notes that a true CNAME would point an alias to an existing canonical host name.
+### Mail record
 
-### 13. Terminology Cleanup
+The `mail.samueldomain.com` entry is a Host (`A`) record mapped directly to `192.168.116.200`. A CNAME would instead map the `mail` alias to a canonical hostname such as `samdc1.samueldomain.com`.
 
-The following terminology was normalized:
+### Conditional forwarder
 
-- `Kerberus` -> `Kerberos`
-- `Disk-on-key` -> `USB removable storage`
-- `law` / generic rule wording -> policy, rule, ACL, or firewall rule depending on context
-- `Failover cluster` in DHCP context -> DHCP failover relationship
-- `Quota in Active Directory` -> FSRM quota / file-server quota
+The `google.com` conditional forwarder demonstrates domain-specific forwarding. Production conditional forwarders are commonly used for private partner namespaces, trusted networks, or separate Active Directory forests.
 
-### 14. Built-in Administrator Explanation
+### Stub zone
 
-The source states that the administrator account should be disabled because its SID is known. The README uses the more precise explanation: the built-in Administrator account has the well-known RID 500 and is commonly renamed or disabled after creating controlled administrative accounts.
+The `yahoo.com` stub zone stores SOA, NS, and required glue records so the DNS server can locate the zone's authoritative name servers without holding a complete copy of the zone.
 
-This is documented as a cybersecurity hardening decision. RID 500 is predictable during enumeration, and default privileged accounts are commonly targeted during password attacks, account discovery, and post-compromise reconnaissance. In a production domain, this should be paired with named administrator accounts, least privilege, privileged access management, MFA, and auditing of privileged logons.
+### Round robin
 
-## Repository Scope
+DNS round robin rotates the order of multiple addresses registered under one hostname. It can provide basic distribution but does not perform health checks and should not be treated as a full load-balancing solution.
 
-This repository is documentation-focused. It does not recreate the virtual machines or export live Windows configuration files. Its purpose is to present the lab workflow, configuration decisions, validation evidence, and security-relevant corrections in a clean GitHub portfolio format.
+## Password and Privileged Account Controls
+
+The domain password baseline is defined in the `PassPolicy` GPO and linked at the `SamuelDomain.com` domain level. Password history, minimum length, complexity, and age requirements reduce common credential risks, but production policy should also follow current organizational and platform guidance. Long password phrases, compromised-password screening, MFA, account lockout protection, and monitoring remain important complementary controls.
+
+The lab uses a 30-day minimum password age to demonstrate history-bypass prevention. This is restrictive for normal operations, so a production value should be selected carefully to avoid preventing legitimate password changes after user concern or help-desk intervention.
+
+The built-in Administrator account has the well-known RID 500 and is commonly targeted during account discovery and password attacks. Disabling or renaming it after creating controlled named administrator accounts reduces predictable exposure. Production protection should also include least privilege, MFA, privileged-access management, and logon auditing.
