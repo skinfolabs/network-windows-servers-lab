@@ -1,4 +1,4 @@
-# Windows Server Active Directory Infrastructure Lab
+# Windows Server Infrastructure Lab
 
 ![Category](https://img.shields.io/badge/Category-Windows%20Infrastructure-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20Server%202019-lightgrey)
